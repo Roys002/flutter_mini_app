@@ -1,27 +1,66 @@
 import 'package:flutter/material.dart';
-import 'src/common/api_client.dart';
-import 'src/auth/login_page.dart';
-import 'src/auth/register_page.dart';
-import 'src/products/product_list_page.dart';
+import 'providers/product_provider.dart';
+import 'package:flutter_app_first/theme.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
+import 'api/api_client.dart';
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await ApiClient.init();
-  runApp(MyApp());
+void main() {
+  ApiClient.setupInterceptor(); // setup interceptor token expired
+
+    runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ProductProvider()), // ✅ ditambahkan
+        // nanti kalau ada CartProvider, PostProvider global, tambahin juga disini
+      ],
+      child: MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _loading = true;
+  String? _role;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSession();
+  }
+
+  Future<void> _initSession() async {
+    final auth = context.read<AuthProvider>();
+    await auth.loadSession();
+    setState(() {
+      _loading = false;
+      _isLoggedIn = auth.isLoggedIn;
+      _role = auth.role;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final initialRoute = ApiClient.token != null ? '/products' : '/';
+    if (_loading) {
+      return MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
+
     return MaterialApp(
-      title: 'Mini E-Commerce',
-      initialRoute: initialRoute,
-      routes: {
-        '/': (context) => LoginPage(),
-        '/register': (context) => RegisterPage(),
-        '/products': (context) => ProductListPage(),
-      },
+      title: "Flutter + Laravel",
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      home: _isLoggedIn ? HomeScreen(role: _role ?? "user") : LoginScreen(),
     );
   }
 }
